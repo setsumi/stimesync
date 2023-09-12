@@ -1,9 +1,11 @@
 object Form1: TForm1
   Left = 0
   Top = 0
+  BorderIcons = [biSystemMenu, biMinimize]
+  BorderStyle = bsSingle
   Caption = 'Form1'
-  ClientHeight = 444
-  ClientWidth = 335
+  ClientHeight = 473
+  ClientWidth = 345
   Color = clBtnFace
   DefaultMonitor = dmDesktop
   Font.Charset = DEFAULT_CHARSET
@@ -41,7 +43,6 @@ object Form1: TForm1
   Position = poScreenCenter
   ShowHint = True
   OnDestroy = FormDestroy
-  OnKeyDown = FormKeyDown
   PixelsPerInch = 96
   TextHeight = 13
   object lblHostSync: TLabel
@@ -69,21 +70,43 @@ object Form1: TForm1
   end
   object Label1: TLabel
     Left = 46
-    Top = 225
+    Top = 249
     Width = 49
     Height = 13
     Caption = 'Local Time'
   end
   object Label2: TLabel
     Left = 46
-    Top = 252
+    Top = 276
     Width = 57
     Height = 13
-    Caption = 'Server Time'
+    Caption = 'Atomic Time'
+  end
+  object Label3: TLabel
+    Left = 46
+    Top = 222
+    Width = 50
+    Height = 13
+    Hint = 'Amount of time '#1089'orrection'
+    Caption = 'Correction'
+  end
+  object lblLocalTime: TLabel
+    Left = 207
+    Top = 249
+    Width = 56
+    Height = 13
+    Caption = 'lblLocalTime'
+  end
+  object lblServerTime: TLabel
+    Left = 207
+    Top = 276
+    Width = 64
+    Height = 13
+    Caption = 'lblServerTime'
   end
   object btnSync: TButton
     Left = 127
-    Top = 293
+    Top = 317
     Width = 106
     Height = 25
     Hint = 'Synchronize local time with atomic clock'
@@ -94,7 +117,7 @@ object Form1: TForm1
   object edtSynced: TEdit
     Left = 46
     Top = 192
-    Width = 99
+    Width = 225
     Height = 21
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
@@ -111,9 +134,9 @@ object Form1: TForm1
     OnMouseLeave = edtSyncedMouseLeave
   end
   object edtOffset: TEdit
-    Left = 151
-    Top = 192
-    Width = 120
+    Left = 109
+    Top = 219
+    Width = 162
     Height = 21
     Hint = 'Amount of time '#1089'orrection'
     ReadOnly = True
@@ -122,8 +145,8 @@ object Form1: TForm1
   end
   object edtLocalTime: TEdit
     Left = 109
-    Top = 222
-    Width = 101
+    Top = 246
+    Width = 92
     Height = 21
     ReadOnly = True
     TabOrder = 4
@@ -131,8 +154,8 @@ object Form1: TForm1
   end
   object edtServerTime: TEdit
     Left = 109
-    Top = 249
-    Width = 100
+    Top = 273
+    Width = 92
     Height = 21
     ReadOnly = True
     TabOrder = 5
@@ -173,7 +196,7 @@ object Form1: TForm1
   end
   object btnAbort: TButton
     Left = 239
-    Top = 293
+    Top = 317
     Width = 75
     Height = 25
     Hint = 'Stop cycling through servers'
@@ -184,34 +207,34 @@ object Form1: TForm1
   end
   object btnGet: TButton
     Left = 24
-    Top = 293
+    Top = 317
     Width = 97
     Height = 25
     Hint = 'Get atomic time'
     Caption = '&Get Time (Enter)'
-    Default = True
     TabOrder = 6
+    OnClick = btnGetClick
   end
   object GroupBox1: TGroupBox
-    Left = 46
-    Top = 332
-    Width = 225
+    Left = 40
+    Top = 356
+    Width = 249
     Height = 105
     Caption = 'Options'
     TabOrder = 9
     object chkRetry: TCheckBox
       Left = 8
       Top = 24
-      Width = 214
+      Width = 238
       Height = 17
-      Caption = 'On &failure automatically try next server'
+      Caption = 'On sync &failure automatically try next server'
       TabOrder = 0
       OnClick = chkRetryClick
     end
     object chkAutosync: TCheckBox
       Left = 8
       Top = 47
-      Width = 214
+      Width = 177
       Height = 17
       Caption = 'A&uto sync at program startup'
       TabOrder = 1
@@ -220,7 +243,7 @@ object Form1: TForm1
     object chkExit: TCheckBox
       Left = 8
       Top = 70
-      Width = 214
+      Width = 185
       Height = 17
       Caption = 'E&xit after time has been synced'
       TabOrder = 2
@@ -229,22 +252,22 @@ object Form1: TForm1
   end
   object tmrUi: TTimer
     OnTimer = tmrUiTimer
-    Left = 288
+    Left = 304
     Top = 8
   end
   object tmrUiMs: TTimer
     Interval = 100
     OnTimer = tmrUiMsTimer
-    Left = 288
-    Top = 64
+    Left = 304
+    Top = 56
   end
   object ImageList1: TImageList
     Height = 20
     Width = 20
-    Left = 288
-    Top = 120
+    Left = 304
+    Top = 104
     Bitmap = {
-      494C010102000800280014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010102000800300014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000500000001400000001002000000000000019
       0000000000000000000000000000000000000000000000000000000000000000
       00000000000000000000000000000000FF000000FF000000FF000000FF000000
@@ -461,13 +484,40 @@ object Form1: TForm1
   object tmrSyncNext: TTimer
     Enabled = False
     OnTimer = tmrSyncNextTimer
-    Left = 288
-    Top = 176
+    Left = 304
+    Top = 152
   end
   object tmrStartup: TTimer
     Interval = 10
     OnTimer = tmrStartupTimer
-    Left = 288
-    Top = 232
+    Left = 304
+    Top = 200
+  end
+  object tmrSyncReal: TTimer
+    Enabled = False
+    Interval = 200
+    OnTimer = tmrSyncRealTimer
+    Left = 304
+    Top = 248
+  end
+  object ActionManager1: TActionManager
+    Left = 216
+    Top = 136
+    StyleName = 'Platform Default'
+    object ActionSync: TAction
+      Caption = 'ActionSync'
+      ShortCut = 16397
+      OnExecute = ActionSyncExecute
+    end
+    object ActionAbort: TAction
+      Caption = 'ActionAbort'
+      ShortCut = 27
+      OnExecute = ActionAbortExecute
+    end
+    object ActionGet: TAction
+      Caption = 'ActionGet'
+      ShortCut = 13
+      OnExecute = ActionGetExecute
+    end
   end
 end

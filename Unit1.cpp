@@ -23,11 +23,11 @@ namespace config
 {
 	const String file = ChangeFileExt(Application->ExeName, L".ini");
 
-	int server = 0;
-	bool retry = false;
-	bool autoSync = false;
-	bool autoExit = false;
-	int exitTimeout = 6;
+	int server = 0; // selected server combobox index
+	bool retry = false; // on failure try next server
+	bool autoSync = false; // sunc on start
+	bool autoExit = false; // exit after successful sync
+	int exitTimeout = 5;
 }
 
 // ---------------------------------------------------------------------------
@@ -38,6 +38,9 @@ __fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 	syncNext = true;
 	failedList = new TStringList();
 	Exiting = false;
+	timeOffset = 0;
+	timeValid = false;
+	timeOnlyGet = true;
 
 	// set high process priority
 	if (!SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS))
@@ -72,8 +75,18 @@ void __fastcall TForm1::tmrStartupTimer(TObject *Sender)
 // ---------------------------------------------------------------------------
 void __fastcall TForm1::FormDestroy(TObject *Sender)
 {
-	SaveConfig();
+	SaveConfig(false);
 	delete failedList;
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TForm1::btnGetClick(TObject *Sender)
+{
+	btnGet->Enabled = false;
+	btnSync->Enabled = false;
+	btnAbort->Enabled = false;
+
+	Sync(cmbServer->Text, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -81,10 +94,11 @@ void __fastcall TForm1::btnSyncClick(TObject *Sender)
 {
 	syncNext = true;
 	failedList->Clear();
+	btnGet->Enabled = false;
 	btnSync->Enabled = false;
 	btnAbort->Enabled = true;
 
-	Sync(cmbServer->Text);
+	Sync(cmbServer->Text, false);
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +111,8 @@ void __fastcall TForm1::btnAbortClick(TObject *Sender)
 // ---------------------------------------------------------------------------
 void TForm1::SyncDone()
 {
+	syncNext = false;
+	btnGet->Enabled = true;
 	btnSync->Enabled = true;
 	btnAbort->Enabled = false;
 }
@@ -132,12 +148,29 @@ void __fastcall TForm1::tmrSyncNextTimer(TObject *Sender)
 	}
 
 	cmbServer->ItemIndex = index;
-	Sync(cmbServer->Text);
+	UpdateUiConfig(true);
+	Sync(cmbServer->Text, false);
 }
 
 // ---------------------------------------------------------------------------
-void TForm1::Sync(String server)
+void __fastcall TForm1::tmrSyncRealTimer(TObject *Sender)
 {
+	tmrSyncReal->Enabled = false;
+	SyncReal(syncParams.server, syncParams.onlyGet);
+}
+
+void TForm1::Sync(String server, bool onlyGet)
+{
+	syncParams.server = server;
+	syncParams.onlyGet = onlyGet;
+	tmrSyncReal->Enabled = true;
+}
+
+// ---------------------------------------------------------------------------
+void TForm1::SyncReal(String server, bool onlyGet)
+{
+	timeOnlyGet = onlyGet;
+
 	TIdSNTP *sntp = new TIdSNTP(NULL);
 	sntp->ReceiveTimeout = 1000;
 	sntp->Host = server;
@@ -151,7 +184,7 @@ void TForm1::Sync(String server)
 	{
 		try
 		{
-			// resolve SNTP server hostname
+			// resolve server hostname
 			TStringList *ips = new TStringList();
 			const bool resolved = ResolveHost(sntp->Host, ips);
 
@@ -169,35 +202,81 @@ void TForm1::Sync(String server)
 			else
 			{
 				// The date 30.12.1899 (zero), is used to represent empty dates
-				TDateTime oldtime = Now();
+				bool synced = false;
+				TDateTime oldtime = 0;
+				TDateTime servtime = 0;
+				TDateTime adj = 0;
+				TDateTime adj_abs = 0;
 
 				TStopwatch stopwatch;
 				stopwatch.Reset();
 				stopwatch.Start();
-				const bool synced = sntp->SyncTime(); // SYNC THE TIME
-				stopwatch.Stop();
+				if (onlyGet)
+				{
+					// Get time
+					servtime = sntp->DateTime;
+					stopwatch.Stop();
 
-				success = synced;
-				TDateTime adj = sntp->AdjustmentTime;
-				TDateTime adj_abs = fabs(adj.Val);
-				TDateTime servtime = sntp->DateTime;
+					oldtime = Now();
+					adj = sntp->AdjustmentTime;
+					adj_abs = fabs(adj.Val);
+					if (servtime.Val != 0)
+					{
+						synced = true;
+						success = true;
+					}
+				}
+				else
+				{
+					// Sync time
+					synced = sntp->SyncTime();
+					stopwatch.Stop();
 
-				// update with result
+					success = synced;
+					adj = sntp->AdjustmentTime;
+					adj_abs = fabs(adj.Val);
+					if (synced)
+					{
+						servtime = Now();
+						oldtime = servtime - adj;
+					}
+					else
+					{
+						oldtime = Now();
+					}
+				}
+
+				// show server host
 				lblHostSync->Caption = sntp->Host;
-				UpdateUiSync(synced, stopwatch.ElapsedMilliseconds);
-				String str;
-				str.printf(L"%s%dd %s.%03d", adj.Val < 0 ? L"-" : L"+",
-					DaysBetween(0, adj_abs), adj_abs.TimeString().w_str(),
-					t_DateTimeMs(adj_abs));
-				edtOffset->Text = str;
+				// show result box
+				if (onlyGet)
+				{
+					UpdateUiGet(synced, stopwatch.ElapsedMilliseconds);
+				}
+				else
+				{
+					UpdateUiSync(synced, stopwatch.ElapsedMilliseconds);
+				}
 				if (servtime.Val == 0)
 				{
 					success = false;
 					edtServerTime->Color = clYellow;
 					edtServerTime->Font->Color = clRed;
 				}
+				// show time offset box
+				if (success)
+				{
+					String str;
+					str.printf(L"%s%dd %s.%03d", adj.Val < 0 ? L"-" : L"+",
+						DaysBetween(0, adj_abs), adj_abs.TimeString().w_str(),
+						t_DateTimeMs(adj_abs));
+					edtOffset->Text = str;
+				}
+				// show local and server times
 				edtLocalTime->Text = t_DoubleToStr(oldtime);
 				edtServerTime->Text = t_DoubleToStr(servtime);
+				timeOffset = adj;
+				timeValid = success;
 			}
 		}
 		catch (Exception &ex)
@@ -208,6 +287,12 @@ void TForm1::Sync(String server)
 	__finally
 	{
 		delete sntp;
+	}
+
+	if (onlyGet)
+	{
+		SyncDone();
+		return;
 	}
 
 	if (success)
@@ -223,7 +308,7 @@ void TForm1::Sync(String server)
 	{
 		failedList->Add(server);
 
-		if (syncNext)
+		if (config::retry && syncNext)
 		{
 			SyncNext();
 		}
@@ -231,6 +316,25 @@ void TForm1::Sync(String server)
 		{
 			SyncDone();
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+void TForm1::UpdateUiGet(bool success, __int64 elapsed)
+{
+	if (success)
+	{
+		String str;
+		str.printf(L"Get OK [%dms]", elapsed);
+		edtSynced->Text = str;
+		edtSynced->Color = clLime;
+		edtSynced->Font->Color = clBlack;
+	}
+	else
+	{
+		String str;
+		str.printf(L"Get Fail [%dms]", elapsed);
+		UpdateUiSyncError(str, L"Could not get the time");
 	}
 }
 
@@ -359,6 +463,8 @@ void TForm1::UpdateUiClear()
 	edtServerTime->Color = clWindow;
 	edtServerTime->Font->Color = clWindowText;
 	Memo1->Clear();
+	lblLocalTime->Caption = L"";
+	lblServerTime->Caption = L"";
 }
 
 // ---------------------------------------------------------------------------
@@ -375,7 +481,6 @@ void __fastcall TForm1::tmrUiTimer(TObject *Sender)
 
 	if (Exiting)
 	{
-		config::exitTimeout--;
 		if (config::exitTimeout <= 0)
 		{
 			Close();
@@ -387,6 +492,7 @@ void __fastcall TForm1::tmrUiTimer(TObject *Sender)
 				config::exitTimeout == 1 ? L"sec" : L"secs");
 			Caption = str;
 		}
+		config::exitTimeout--;
 	}
 }
 
@@ -406,16 +512,36 @@ void TForm1::UpdateUiTimezone()
 }
 
 // ---------------------------------------------------------------------------
+String MsDigit(TDateTime &dt)
+{
+	String ms;
+	ms.printf(L"%03d", t_DateTimeMs(dt));
+	// base index 1
+	return ms[1];
+}
+
 void TForm1::UpdateUiDateTime()
 {
 	TDateTime now = Now();
-	String ms = t_DateTimeMs(now);
-	if (ms.Length() > 0)
-		ms = ms[1]; // base index 1
+	// show long local time
 	String str;
 	str.printf(L"%s.%s", FormatDateTime(L"dddd, d mmmm yyyy, hh:nn:ss", now).w_str(),
-		ms.w_str());
+		MsDigit(now).w_str());
 	lblDateTime->Caption = str;
+
+	// show short local and server time
+	if (timeOnlyGet)
+	{
+		if (!edtLocalTime->Text.IsEmpty())
+		{
+			lblLocalTime->Caption = now.DateTimeString() + L"." + MsDigit(now);
+		}
+		if (!edtServerTime->Text.IsEmpty() && timeValid)
+		{
+			TDateTime serv = now + timeOffset;
+			lblServerTime->Caption = serv.DateTimeString() + L"." + MsDigit(serv);
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -424,7 +550,7 @@ void TForm1::UpdateUiSync(bool synced, __int64 elapsed)
 	if (synced)
 	{
 		String str;
-		str.printf(L"OK [%dms]", elapsed);
+		str.printf(L"Sync OK [%dms]", elapsed);
 		edtSynced->Text = str;
 		edtSynced->Color = clLime;
 		edtSynced->Font->Color = clBlack;
@@ -432,8 +558,8 @@ void TForm1::UpdateUiSync(bool synced, __int64 elapsed)
 	else
 	{
 		String str;
-		str.printf(L"Fail [%dms]", elapsed);
-		UpdateUiSyncError(str, L"Could not synchronize the time");
+		str.printf(L"Sync Fail [%dms]", elapsed);
+		UpdateUiSyncError(str, L"Could not synchronize the clock");
 	}
 }
 
@@ -481,36 +607,11 @@ void __fastcall TForm1::edtSyncedMouseEnter(TObject *Sender)
 }
 
 // ---------------------------------------------------------------------------
-void __fastcall TForm1::FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift)
-{
-	switch (Key)
-	{
-	case VK_RETURN:
-		if (Shift.Contains(ssCtrl)) // Ctrl+Enter
-		{
-			if (btnSync->Enabled)
-			{
-				btnSyncClick(btnSync);
-			}
-		}
-		break;
-	case VK_ESCAPE:
-		if (btnAbort->Enabled)
-		{
-			btnAbortClick(btnAbort);
-		}
-		break;
-	default:
-		break;
-	}
-}
-
-// ---------------------------------------------------------------------------
 void TForm1::LoadConfig()
 {
 	if (!FileExists(config::file))
 	{
-		SaveConfig();
+		SaveConfig(true);
 
 		TIniFile *ini = new TIniFile(config::file);
 		TStringList *list = new TStringList();
@@ -536,7 +637,7 @@ void TForm1::LoadConfig()
 	config::retry = ini->ReadBool(L"Options", L"Retry", false);
 	config::autoExit = ini->ReadBool(L"Options", L"AutoExit", false);
 	config::autoSync = ini->ReadBool(L"Options", L"AutoSync", false);
-	config::exitTimeout = ini->ReadInteger(L"Options", L"ExitTimeout", 6);
+	config::exitTimeout = ini->ReadInteger(L"Options", L"ExitTimeout", 5);
 
 	for (int i = 0; ; i++)
 	{
@@ -552,7 +653,7 @@ void TForm1::LoadConfig()
 }
 
 // ---------------------------------------------------------------------------
-void TForm1::SaveConfig()
+void TForm1::SaveConfig(bool saveReadonly)
 {
 	TIniFile *ini = new TIniFile(config::file);
 
@@ -560,7 +661,10 @@ void TForm1::SaveConfig()
 	ini->WriteBool(L"Options", L"Retry", config::retry);
 	ini->WriteBool(L"Options", L"AutoExit", config::autoExit);
 	ini->WriteBool(L"Options", L"AutoSync", config::autoSync);
-	ini->WriteInteger(L"Options", L"ExitTimeout", config::exitTimeout);
+	if (saveReadonly)
+	{
+		ini->WriteInteger(L"Options", L"ExitTimeout", config::exitTimeout);
+	}
 
 	delete ini;
 }
@@ -613,6 +717,33 @@ void TForm1::Exit()
 	btnGet->Enabled = false;
 	btnSync->Enabled = false;
 	btnAbort->Enabled = false;
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TForm1::ActionSyncExecute(TObject *Sender)
+{
+	if (btnSync->Enabled)
+	{
+		btnSyncClick(btnSync);
+	}
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TForm1::ActionAbortExecute(TObject *Sender)
+{
+	if (btnAbort->Enabled)
+	{
+		btnAbortClick(btnAbort);
+	}
+}
+
+// ---------------------------------------------------------------------------
+void __fastcall TForm1::ActionGetExecute(TObject *Sender)
+{
+	if (btnGet->Enabled)
+	{
+		btnGetClick(btnGet);
+	}
 }
 
 // ---------------------------------------------------------------------------
