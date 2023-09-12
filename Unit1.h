@@ -42,6 +42,7 @@ __published: // IDE-managed Components
 	TCheckBox *chkRetry;
 	TCheckBox *chkAutosync;
 	TCheckBox *chkExit;
+	TTimer *tmrStartup;
 
 	void __fastcall btnSyncClick(TObject *Sender);
 	void __fastcall tmrUiTimer(TObject *Sender);
@@ -53,6 +54,7 @@ __published: // IDE-managed Components
 	void __fastcall FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift);
 	void __fastcall FormDestroy(TObject *Sender);
 	void __fastcall chkRetryClick(TObject *Sender);
+	void __fastcall tmrStartupTimer(TObject *Sender);
 
 private: // User declarations
 	bool ResolveHost(String host, TStringList *iplist);
@@ -68,10 +70,13 @@ private: // User declarations
 	void LoadConfig();
 	void SaveConfig();
 	void UpdateUiConfig(bool uiToConfig);
+	void Exit();
 
 	TBalloonHint *Hint1;
 	bool syncNext;
-    TStringList *failedList;
+	TStringList *failedList;
+	bool Exiting;
+
 public: // User declarations
 	__fastcall TForm1(TComponent* Owner);
 };

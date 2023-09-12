@@ -146,6 +146,8 @@ object Form1: TForm1
     DropDownCount = 20
     TabOrder = 0
     Text = 'pool.ntp.org'
+    OnCloseUp = chkRetryClick
+    OnDropDown = chkRetryClick
     OnSelect = chkRetryClick
   end
   object Memo1: TMemo
@@ -242,7 +244,7 @@ object Form1: TForm1
     Left = 288
     Top = 120
     Bitmap = {
-      494C010102000800200014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010102000800280014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000500000001400000001002000000000000019
       0000000000000000000000000000000000000000000000000000000000000000
       00000000000000000000000000000000FF000000FF000000FF000000FF000000
@@ -461,5 +463,11 @@ object Form1: TForm1
     OnTimer = tmrSyncNextTimer
     Left = 288
     Top = 176
+  end
+  object tmrStartup: TTimer
+    Interval = 10
+    OnTimer = tmrStartupTimer
+    Left = 288
+    Top = 232
   end
 end

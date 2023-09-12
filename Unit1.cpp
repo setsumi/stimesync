@@ -21,12 +21,13 @@ TForm1 *Form1;
 // ---------------------------------------------------------------------------
 namespace config
 {
-    const String file = ChangeFileExt(Application->ExeName, L".ini");
+	const String file = ChangeFileExt(Application->ExeName, L".ini");
 
 	int server = 0;
 	bool retry = false;
 	bool autoSync = false;
 	bool autoExit = false;
+	int exitTimeout = 6;
 }
 
 // ---------------------------------------------------------------------------
@@ -36,6 +37,7 @@ __fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 	Hint1 = NULL;
 	syncNext = true;
 	failedList = new TStringList();
+	Exiting = false;
 
 	// set high process priority
 	if (!SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS))
@@ -49,14 +51,28 @@ __fastcall TForm1::TForm1(TComponent* Owner) : TForm(Owner)
 	UpdateUiTimezone();
 	// suppress autoselect text in combobox
 	PostMessage(cmbServer->Handle, CB_SETEDITSEL, (WPARAM) - 1, 0);
-    LoadConfig();
+	LoadConfig();
 	UpdateUiClear();
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+void __fastcall TForm1::tmrStartupTimer(TObject *Sender)
+{
+	tmrStartup->Enabled = false;
+
+	if (config::autoSync)
+	{
+		if (btnSync->Enabled)
+		{
+			btnSyncClick(btnSync);
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::FormDestroy(TObject *Sender)
 {
-    SaveConfig();
+	SaveConfig();
 	delete failedList;
 }
 
@@ -71,28 +87,28 @@ void __fastcall TForm1::btnSyncClick(TObject *Sender)
 	Sync(cmbServer->Text);
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::btnAbortClick(TObject *Sender)
 {
 	syncNext = false;
 	btnAbort->Enabled = false;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void TForm1::SyncDone()
 {
 	btnSync->Enabled = true;
 	btnAbort->Enabled = false;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void TForm1::SyncNext()
 {
 	// start next
 	tmrSyncNext->Enabled = true;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::tmrSyncNextTimer(TObject *Sender)
 {
 	tmrSyncNext->Enabled = false;
@@ -100,7 +116,7 @@ void __fastcall TForm1::tmrSyncNextTimer(TObject *Sender)
 	if (!syncNext)
 	{
 		SyncDone();
-        return;
+		return;
 	}
 
 	int index = cmbServer->ItemIndex + 1;
@@ -171,7 +187,8 @@ void TForm1::Sync(String server)
 				UpdateUiSync(synced, stopwatch.ElapsedMilliseconds);
 				String str;
 				str.printf(L"%s%dd %s.%03d", adj.Val < 0 ? L"-" : L"+",
-					DaysBetween(0, adj_abs), adj_abs.TimeString().w_str(), t_DateTimeMs(adj_abs));
+					DaysBetween(0, adj_abs), adj_abs.TimeString().w_str(),
+					t_DateTimeMs(adj_abs));
 				edtOffset->Text = str;
 				if (servtime.Val == 0)
 				{
@@ -196,6 +213,11 @@ void TForm1::Sync(String server)
 	if (success)
 	{
 		SyncDone();
+
+		if (config::autoExit)
+		{
+			Exit();
+		}
 	}
 	else
 	{
@@ -350,6 +372,22 @@ void TForm1::ScrollToTop(TMemo *memo)
 void __fastcall TForm1::tmrUiTimer(TObject *Sender)
 {
 	UpdateUiTimezone();
+
+	if (Exiting)
+	{
+		config::exitTimeout--;
+		if (config::exitTimeout <= 0)
+		{
+			Close();
+		}
+		else
+		{
+			String str;
+			str.printf(L"Exiting in %d %s...", config::exitTimeout,
+				config::exitTimeout == 1 ? L"sec" : L"secs");
+			Caption = str;
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -362,7 +400,8 @@ void __fastcall TForm1::tmrUiMsTimer(TObject *Sender)
 void TForm1::UpdateUiTimezone()
 {
 	String str;
-	str.printf(L"(%s) %s", TTimeZone::Local->Abbreviation.w_str(), TTimeZone::Local->DisplayName.w_str());
+	str.printf(L"(%s) %s", TTimeZone::Local->Abbreviation.w_str(),
+		TTimeZone::Local->DisplayName.w_str());
 	lblTimezone->Caption = str;
 }
 
@@ -374,7 +413,8 @@ void TForm1::UpdateUiDateTime()
 	if (ms.Length() > 0)
 		ms = ms[1]; // base index 1
 	String str;
-	str.printf(L"%s.%s", FormatDateTime(L"dddd, d mmmm yyyy, hh:nn:ss", now).w_str(), ms.w_str());
+	str.printf(L"%s.%s", FormatDateTime(L"dddd, d mmmm yyyy, hh:nn:ss", now).w_str(),
+		ms.w_str());
 	lblDateTime->Caption = str;
 }
 
@@ -419,7 +459,7 @@ void __fastcall TForm1::edtSyncedMouseLeave(TObject *Sender)
 	}
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::edtSyncedMouseEnter(TObject *Sender)
 {
 	if (Hint1)
@@ -440,32 +480,32 @@ void __fastcall TForm1::edtSyncedMouseEnter(TObject *Sender)
 	}
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::FormKeyDown(TObject *Sender, WORD &Key, TShiftState Shift)
 {
-	switch(Key)
+	switch (Key)
 	{
-		case VK_RETURN:
-			if (Shift.Contains(ssCtrl)) // Ctrl+Enter
+	case VK_RETURN:
+		if (Shift.Contains(ssCtrl)) // Ctrl+Enter
+		{
+			if (btnSync->Enabled)
 			{
-				if (btnSync->Enabled)
-				{
-					btnSyncClick(btnSync);
-				}
+				btnSyncClick(btnSync);
 			}
-			break;
-		case VK_ESCAPE:
-			if (btnAbort->Enabled)
-			{
-				btnAbortClick(btnAbort);
-			}
-			break;
-		default:
-			break;
+		}
+		break;
+	case VK_ESCAPE:
+		if (btnAbort->Enabled)
+		{
+			btnAbortClick(btnAbort);
+		}
+		break;
+	default:
+		break;
 	}
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void TForm1::LoadConfig()
 {
 	if (!FileExists(config::file))
@@ -493,23 +533,25 @@ void TForm1::LoadConfig()
 	TIniFile *ini = new TIniFile(config::file);
 
 	config::server = ini->ReadInteger(L"Options", L"Server", 0);
-	config::retry    = ini->ReadBool(L"Options", L"Retry", false);
+	config::retry = ini->ReadBool(L"Options", L"Retry", false);
 	config::autoExit = ini->ReadBool(L"Options", L"AutoExit", false);
 	config::autoSync = ini->ReadBool(L"Options", L"AutoSync", false);
+	config::exitTimeout = ini->ReadInteger(L"Options", L"ExitTimeout", 6);
 
-	for (int i = 0;; i++)
+	for (int i = 0; ; i++)
 	{
 		String server = ini->ReadString(L"Servers", IntToStr(i), L"");
-		if (server.IsEmpty()) break;
+		if (server.IsEmpty())
+			break;
 		cmbServer->Items->Add(server);
 	}
 
-    UpdateUiConfig(false);
+	UpdateUiConfig(false);
 
 	delete ini;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void TForm1::SaveConfig()
 {
 	TIniFile *ini = new TIniFile(config::file);
@@ -518,11 +560,12 @@ void TForm1::SaveConfig()
 	ini->WriteBool(L"Options", L"Retry", config::retry);
 	ini->WriteBool(L"Options", L"AutoExit", config::autoExit);
 	ini->WriteBool(L"Options", L"AutoSync", config::autoSync);
+	ini->WriteInteger(L"Options", L"ExitTimeout", config::exitTimeout);
 
 	delete ini;
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void TForm1::UpdateUiConfig(bool uiToConfig)
 {
 	if (uiToConfig)
@@ -549,12 +592,27 @@ void TForm1::UpdateUiConfig(bool uiToConfig)
 	}
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 void __fastcall TForm1::chkRetryClick(TObject *Sender)
 {
-	if (((TControl*)Sender)->Tag != 0) return; // disable recursive OnClick
+	// suppress auto-select text
+	if (Sender == cmbServer)
+	{
+		PostMessage(cmbServer->Handle, CB_SETEDITSEL, (WPARAM) - 1, 0);
+	}
+
+	if (((TControl*)Sender)->Tag != 0)
+		return; // disable recursive OnClick
 	UpdateUiConfig(true);
 }
 
-//---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+void TForm1::Exit()
+{
+	Exiting = true;
+	btnGet->Enabled = false;
+	btnSync->Enabled = false;
+	btnAbort->Enabled = false;
+}
 
+// ---------------------------------------------------------------------------
