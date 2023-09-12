@@ -2,6 +2,10 @@
 
 Simple SNTP atomic clock time sync GUI app for Windows.
 
+## Download
+
+https://github.com/setsumi/stimesync/releases
+
 ## List of Top Public Time Servers
 
 https://gist.github.com/mutin-sa/eea1c396b1e610a2da1e5550d94b0453
