@@ -119,6 +119,7 @@ object Form1: TForm1
     Top = 192
     Width = 225
     Height = 21
+    AutoSelect = False
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -11
@@ -139,6 +140,7 @@ object Form1: TForm1
     Width = 162
     Height = 21
     Hint = 'Amount of time '#1089'orrection'
+    AutoSelect = False
     ReadOnly = True
     TabOrder = 3
     Text = 'edtOffset'
@@ -148,6 +150,7 @@ object Form1: TForm1
     Top = 246
     Width = 92
     Height = 21
+    AutoSelect = False
     ReadOnly = True
     TabOrder = 4
     Text = 'edtLocalTime'
@@ -157,6 +160,7 @@ object Form1: TForm1
     Top = 273
     Width = 92
     Height = 21
+    AutoSelect = False
     ReadOnly = True
     TabOrder = 5
     Text = 'edtServerTime'
@@ -171,6 +175,8 @@ object Form1: TForm1
     Text = 'pool.ntp.org'
     OnCloseUp = chkRetryClick
     OnDropDown = chkRetryClick
+    OnEnter = chkRetryClick
+    OnExit = chkRetryClick
     OnSelect = chkRetryClick
   end
   object Memo1: TMemo
@@ -267,7 +273,7 @@ object Form1: TForm1
     Left = 304
     Top = 104
     Bitmap = {
-      494C010102000800300014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010102000800340014001400FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000500000001400000001002000000000000019
       0000000000000000000000000000000000000000000000000000000000000000
       00000000000000000000000000000000FF000000FF000000FF000000FF000000
