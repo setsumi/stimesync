@@ -619,10 +619,13 @@ void TForm1::LoadConfig()
 		list->Add(L"pool.ntp.org");
 		list->Add(L"time.google.com");
 		list->Add(L"time.cloudflare.com");
-		list->Add(L"time.windows.com");
 		list->Add(L"time.apple.com");
 		list->Add(L"time.facebook.com");
+		list->Add(L"time.windows.com");
 		list->Add(L"time.esa.int");
+		list->Add(L"ntp.se");
+		list->Add(L"ntp.ripe.net");
+		list->Add(L"ntp.time.nl");
 		for (int i = 0; i < list->Count; i++)
 		{
 			ini->WriteString(L"Servers", IntToStr(i), list->Strings[i]);
@@ -657,7 +660,7 @@ void TForm1::SaveConfig(bool saveReadonly)
 {
 	TIniFile *ini = new TIniFile(config::file);
 
-	ini->WriteInteger(L"Options", L"Server", config::server);
+	ini->WriteInteger(L"Options", L"Server", config::server < 0 ? 0 : config::server);
 	ini->WriteBool(L"Options", L"Retry", config::retry);
 	ini->WriteBool(L"Options", L"AutoExit", config::autoExit);
 	ini->WriteBool(L"Options", L"AutoSync", config::autoSync);
