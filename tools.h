@@ -19,8 +19,12 @@ String GetWindowClassPlus(HWND hwnd);
 String GetWindowTitlePlus(HWND hwnd);
 DWORD PSAPI_EnumProcesses(std::list<DWORD>& listProcessIDs, DWORD dwMaxProcessCount);
 
-int t_DateTimeMs(TDateTime &dtm);
+int t_DateTimeMs(const TDateTime &dtm);
 String t_DoubleToStr(double dbl);
+String t_MsDigit(const TDateTime &dt);
+String t_MsFullDigits(const TDateTime &dt);
+String t_FormatDateTimeMs(const TDateTime &dt);
+String t_FormatTimeMs(const TDateTime &dt);
 
 // ---------------------------------------------------------------------------
 #endif

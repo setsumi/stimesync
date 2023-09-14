@@ -75,7 +75,7 @@ void __fastcall TForm1::tmrStartupTimer(TObject *Sender)
 // ---------------------------------------------------------------------------
 void __fastcall TForm1::FormDestroy(TObject *Sender)
 {
-	SaveConfig(false);
+	SaveConfig();
 	delete failedList;
 }
 
@@ -267,9 +267,8 @@ void TForm1::SyncReal(String server, bool onlyGet)
 				if (success)
 				{
 					String str;
-					str.printf(L"%s%dd %s.%03d", adj.Val < 0 ? L"-" : L"+",
-						DaysBetween(0, adj_abs), adj_abs.TimeString().w_str(),
-						t_DateTimeMs(adj_abs));
+					str.printf(L"%s%dd %s", adj.Val < 0 ? L"-" : L"+",
+						DaysBetween(0, adj_abs), t_FormatTimeMs(adj_abs).w_str());
 					edtOffset->Text = str;
 				}
 				// show local and server times
@@ -481,18 +480,17 @@ void __fastcall TForm1::tmrUiTimer(TObject *Sender)
 
 	if (Exiting)
 	{
-		if (config::exitTimeout <= 0)
+		if (Tag <= 0)
 		{
 			Close();
 		}
 		else
 		{
 			String str;
-			str.printf(L"Exiting in %d %s...", config::exitTimeout,
-				config::exitTimeout == 1 ? L"sec" : L"secs");
+			str.printf(L"Exiting in %d %s...", Tag, Tag == 1 ? L"sec" : L"secs");
 			Caption = str;
 		}
-		config::exitTimeout--;
+		Tag = Tag - 1;
 	}
 }
 
@@ -512,21 +510,13 @@ void TForm1::UpdateUiTimezone()
 }
 
 // ---------------------------------------------------------------------------
-String MsDigit(TDateTime &dt)
-{
-	String ms;
-	ms.printf(L"%03d", t_DateTimeMs(dt));
-	// base index 1
-	return ms[1];
-}
-
 void TForm1::UpdateUiDateTime()
 {
 	TDateTime now = Now();
 	// show long local time
 	String str;
 	str.printf(L"%s.%s", FormatDateTime(L"dddd, d mmmm yyyy, hh:nn:ss", now).w_str(),
-		MsDigit(now).w_str());
+		t_MsDigit(now).w_str());
 	lblDateTime->Caption = str;
 
 	// show short local and server time
@@ -534,12 +524,12 @@ void TForm1::UpdateUiDateTime()
 	{
 		if (!edtLocalTime->Text.IsEmpty())
 		{
-			lblLocalTime->Caption = now.DateTimeString() + L"." + MsDigit(now);
+			lblLocalTime->Caption = t_FormatDateTimeMs(now);
 		}
 		if (!edtServerTime->Text.IsEmpty() && timeValid)
 		{
 			TDateTime serv = now + timeOffset;
-			lblServerTime->Caption = serv.DateTimeString() + L"." + MsDigit(serv);
+			lblServerTime->Caption = t_FormatDateTimeMs(serv);
 		}
 	}
 }
@@ -611,7 +601,7 @@ void TForm1::LoadConfig()
 {
 	if (!FileExists(config::file))
 	{
-		SaveConfig(true);
+		SaveConfig();
 
 		TIniFile *ini = new TIniFile(config::file);
 		TStringList *list = new TStringList();
@@ -656,7 +646,7 @@ void TForm1::LoadConfig()
 }
 
 // ---------------------------------------------------------------------------
-void TForm1::SaveConfig(bool saveReadonly)
+void TForm1::SaveConfig()
 {
 	TIniFile *ini = new TIniFile(config::file);
 
@@ -664,10 +654,7 @@ void TForm1::SaveConfig(bool saveReadonly)
 	ini->WriteBool(L"Options", L"Retry", config::retry);
 	ini->WriteBool(L"Options", L"AutoExit", config::autoExit);
 	ini->WriteBool(L"Options", L"AutoSync", config::autoSync);
-	if (saveReadonly)
-	{
-		ini->WriteInteger(L"Options", L"ExitTimeout", config::exitTimeout);
-	}
+	ini->WriteInteger(L"Options", L"ExitTimeout", config::exitTimeout);
 
 	delete ini;
 }
@@ -681,6 +668,11 @@ void TForm1::UpdateUiConfig(bool uiToConfig)
 		config::retry = chkRetry->Checked;
 		config::autoSync = chkAutosync->Checked;
 		config::autoExit = chkExit->Checked;
+
+		if (Exiting && !config::autoExit)
+		{
+			ExitStop();
+		}
 	}
 	else
 	{
@@ -717,9 +709,18 @@ void __fastcall TForm1::chkRetryClick(TObject *Sender)
 void TForm1::Exit()
 {
 	Exiting = true;
+	Tag = config::exitTimeout;
 	btnGet->Enabled = false;
 	btnSync->Enabled = false;
 	btnAbort->Enabled = false;
+}
+
+// ---------------------------------------------------------------------------
+void TForm1::ExitStop()
+{
+	Exiting = false;
+	Caption = Application->Title;
+	SyncDone();
 }
 
 // ---------------------------------------------------------------------------

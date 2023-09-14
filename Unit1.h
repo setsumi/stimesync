@@ -97,9 +97,10 @@ private: // User declarations
 	void SyncDone();
 	void SyncNext();
 	void LoadConfig();
-	void SaveConfig(bool saveReadonly);
+	void SaveConfig();
 	void UpdateUiConfig(bool uiToConfig);
 	void Exit();
+	void ExitStop();
 	void UpdateUiGet(bool success, __int64 elapsed);
 
 	TBalloonHint *Hint1;

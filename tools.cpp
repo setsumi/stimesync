@@ -134,7 +134,7 @@ DWORD PSAPI_EnumProcesses(std::list<DWORD>& listProcessIDs, DWORD dwMaxProcessCo
 }
 
 // ---------------------------------------------------------------------------
-int t_DateTimeMs(TDateTime &dtm)
+int t_DateTimeMs(const TDateTime &dtm)
 {
 	Word dummy, ms;
 	DecodeDateTime(dtm, dummy, dummy, dummy, dummy, dummy, dummy, ms);
@@ -146,6 +146,41 @@ String t_DoubleToStr(double dbl)
 {
 	String str;
 	str.printf(L"%f", dbl);
+	return str;
+}
+
+// ---------------------------------------------------------------------------
+String t_MsDigit(const TDateTime &dt)
+{
+	String ms;
+	ms.printf(L"%03d", t_DateTimeMs(dt));
+	// base index 1
+	return ms[1];
+}
+
+// ---------------------------------------------------------------------------
+String t_MsFullDigits(const TDateTime &dt)
+{
+	String ms;
+	ms.printf(L"%03d", t_DateTimeMs(dt));
+	return ms;
+}
+
+// ---------------------------------------------------------------------------
+String t_FormatDateTimeMs(const TDateTime &dt)
+{
+	String str;
+	str.printf(L"%s.%s", FormatDateTime(L"dd.mm.yyyy hh:nn:ss", dt).w_str(),
+		t_MsDigit(dt).w_str());
+	return str;
+}
+
+// ---------------------------------------------------------------------------
+String t_FormatTimeMs(const TDateTime &dt)
+{
+	String str;
+	str.printf(L"%s.%s", FormatDateTime(L"hh:nn:ss", dt).w_str(),
+		t_MsFullDigits(dt).w_str());
 	return str;
 }
 
