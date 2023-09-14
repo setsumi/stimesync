@@ -739,6 +739,11 @@ void __fastcall TForm1::ActionAbortExecute(TObject *Sender)
 	{
 		btnAbortClick(btnAbort);
 	}
+
+	if (Exiting)
+	{
+		ExitStop();
+	}
 }
 
 // ---------------------------------------------------------------------------
